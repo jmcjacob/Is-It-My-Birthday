@@ -3,8 +3,6 @@ package com.jacob.authentication;
 import android.app.AlertDialog;
 import android.support.v7.app.AppCompatActivity;
 import android.os.Bundle;
-import java.util.concurrent.ExecutionException;
-import java.util.concurrent.atomic.AtomicBoolean;
 import android.content.Context;
 import android.content.SharedPreferences;
 import android.content.SharedPreferences.Editor;
@@ -19,9 +17,14 @@ import com.microsoft.windowsazure.mobileservices.authentication.MobileServiceUse
 public class MainActivity extends AppCompatActivity {
 
     private MobileServiceClient mClient;
+    public static final String SHAREDPREFFILE = "temp";
+    public static final String USERIDPREF = "uid";
+    public static final String TOKENPREF = "tkn";
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
+
+
         super.onCreate(savedInstanceState);
         setContentView(R.layout.activity_main);
         try {
@@ -29,38 +32,63 @@ public class MainActivity extends AppCompatActivity {
                     "https://mobilecomputingauthentication.azurewebsites.net",
                     this
             );
-            authenticate();
+            if (!loadUserTokenCache(mClient))
+                authenticate();
         }
         catch (Exception e) {}
     }
 
     private void authenticate() {
+        // Login using the Google provider.
 
         ListenableFuture<MobileServiceUser> mLogin = mClient.login(MobileServiceAuthenticationProvider.Facebook);
 
         Futures.addCallback(mLogin, new FutureCallback<MobileServiceUser>() {
             @Override
             public void onFailure(Throwable exc) {
-                createAndShowDialog((exc.toString()), "Error");
+                createAndShowDialog(exc.toString(), "Error");
             }
-
             @Override
             public void onSuccess(MobileServiceUser user) {
                 createAndShowDialog(String.format(
                         "You are now logged in - %1$2s",
                         user.getUserId()), "Success");
-
-                // call below method to show table data upon successful Twitter authentication
-                //showTableData();
+                cacheUserToken(user);
             }
         });
     }
 
+    private void cacheUserToken(MobileServiceUser user)
+    {
+        SharedPreferences prefs = getSharedPreferences(SHAREDPREFFILE, Context.MODE_PRIVATE);
+        Editor editor = prefs.edit();
+        editor.putString(USERIDPREF, user.getUserId());
+        editor.putString(TOKENPREF, user.getAuthenticationToken());
+        editor.apply();
+    }
+
     private void createAndShowDialog(String message, String title) {
         AlertDialog.Builder builder = new AlertDialog.Builder(this);
-
         builder.setMessage(message);
         builder.setTitle(title);
         builder.create().show();
     }
-}
+
+    private boolean loadUserTokenCache(MobileServiceClient client) {
+        SharedPreferences prefs = getSharedPreferences(SHAREDPREFFILE, Context.MODE_PRIVATE);
+        String userId = prefs.getString(USERIDPREF, "undefined");
+        if (userId == "undefined")
+            return false;
+        String token = prefs.getString(TOKENPREF, "undefined");
+        if (token == "undefined")
+            return false;
+
+        MobileServiceUser user = new MobileServiceUser(userId);
+        user.setAuthenticationToken(token);
+        client.setCurrentUser(user);
+
+        return true;
+    }
+
+    }
+
