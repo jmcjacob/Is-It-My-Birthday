@@ -1,11 +1,14 @@
 package com.jacob.authentication;
 
 import android.app.AlertDialog;
+import android.content.Context;
 import android.content.Intent;
 import android.support.v7.app.AppCompatActivity;
 import android.os.Bundle;
 import android.content.SharedPreferences;
 import android.content.SharedPreferences.Editor;
+import android.util.Log;
+import android.view.View;
 import android.widget.ProgressBar;
 import com.google.common.util.concurrent.FutureCallback;
 import com.google.common.util.concurrent.Futures;
@@ -28,21 +31,20 @@ import com.securepreferences.SecurePreferences;
 public class MainActivity extends AppCompatActivity {
 
     private MobileServiceClient mClient;
-    public static final String USERIDPREF = "uid";
-    public static final String TOKENPREF = "tkn";
     public boolean bAuthenticating = false;
     public final Object mAuthenticationLock = new Object();
     ProgressBar mProgressBar;
     SharedPreferences prefs;
+    public static Context This;
 
     @Override
     public void onCreate(Bundle savedInstanceState) {
+        This = this;
         super.onCreate(savedInstanceState);
         prefs = new SecurePreferences(this, "01827711125", "token");
         setContentView(R.layout.activity_main);
-        mProgressBar = (ProgressBar) findViewById(R.id.loadingProgressBar);
 
-        // Initialize the progress bar
+        mProgressBar = (ProgressBar) findViewById(R.id.loadingProgressBar);
         mProgressBar.setVisibility(ProgressBar.GONE);
 
         try {
@@ -56,8 +58,26 @@ public class MainActivity extends AppCompatActivity {
             // Authenticate passing false to load the current token cache if available.
             authenticate(false);
 
-            Intent intent = new Intent(this, Details.class);
-            startActivity(intent);
+        } catch (MalformedURLException e) {
+            createAndShowDialog(new Exception("Error creating the Mobile Service. " +
+                    "Verify the URL").toString(), "Error");
+        }
+    }
+
+    public void onClick(View view) {
+        mProgressBar = (ProgressBar) findViewById(R.id.loadingProgressBar);
+        mProgressBar.setVisibility(ProgressBar.GONE);
+
+        try {
+            // Create the Mobile Service Client instance, using the provided
+            // Mobile Service URL and key
+            mClient = new MobileServiceClient(
+                    "https://mobilecomputingauthentication.azurewebsites.net", this)
+                    .withFilter(new ProgressFilter())
+                    .withFilter(new RefreshTokenCacheFilter());
+
+            // Authenticate passing false to load the current token cache if available.
+            authenticate(false);
 
         } catch (MalformedURLException e) {
             createAndShowDialog(new Exception("Error creating the Mobile Service. " +
@@ -82,11 +102,17 @@ public class MainActivity extends AppCompatActivity {
                             {
                                 if (exception == null) {
                                     cacheUserToken(mClient.getCurrentUser());
+                                    Intent intent = new Intent(This, Details.class);
+                                    startActivity(intent);
                                 } else {
                                     createAndShowDialog(exception.getMessage(), "Login Error");
                                 }
                                 bAuthenticating = false;
                                 mAuthenticationLock.notifyAll();
+                            }
+
+                            if (exception == null) {
+
                             }
                         }
                     });
@@ -100,13 +126,15 @@ public class MainActivity extends AppCompatActivity {
                 bAuthenticating = false;
                 mAuthenticationLock.notifyAll();
             }
+            Intent intent = new Intent(this, Details.class);
+            startActivity(intent);
         }
     }
 
     private void cacheUserToken(MobileServiceUser user) {
         Editor editor = prefs.edit();
-        editor.putString(USERIDPREF, user.getUserId());
-        editor.putString(TOKENPREF, user.getAuthenticationToken());
+        editor.putString("uid", user.getUserId());
+        editor.putString("tkn", user.getAuthenticationToken());
         editor.apply();
     }
 
@@ -118,11 +146,11 @@ public class MainActivity extends AppCompatActivity {
     }
 
     private boolean loadUserTokenCache(MobileServiceClient client) {
-        String userId = prefs.getString(USERIDPREF, "undefined");
-        if (userId == "undefined")
+        String userId = prefs.getString("uid", "undefined");
+        if (userId.equals("undefined"))
             return false;
-        String token = prefs.getString(TOKENPREF, "undefined");
-        if (token == "undefined")
+        String token = prefs.getString("tkn", "undefined");
+        if (token.equals("undefined"))
             return false;
 
         MobileServiceUser user = new MobileServiceUser(userId);
