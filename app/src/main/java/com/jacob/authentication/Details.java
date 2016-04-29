@@ -35,6 +35,8 @@ import java.io.InputStreamReader;
 import java.net.HttpURLConnection;
 import java.net.MalformedURLException;
 import java.net.URL;
+import java.text.DateFormat;
+import java.text.SimpleDateFormat;
 import java.util.Date;
 import java.util.concurrent.TimeUnit;
 
@@ -57,17 +59,28 @@ public class Details extends AppCompatActivity {
             JSONArray topArray = new JSONArray(Json);
             JSONObject topObject = topArray.getJSONObject(0);
             JSONArray innerArray = topObject.getJSONArray("user_claims");
+
             JSONObject innerObject = innerArray.getJSONObject(2);
             TextView textView = (TextView) findViewById(R.id.name);
             String name = innerObject.getString("val");
             textView.setText(name);
 
-            SharedPreferences.Editor editor = prefs.edit();
-            editor.putString("facebook", topObject.getString("access_token"));
-            editor.apply();
+            JSONObject innerObject2 = innerArray.getJSONObject(7);
+            Date birthday = new Date(innerObject2.getString("val"));
+            String[] birthdayS = birthday.toString().split(" ");
+            Date today = new Date();
+            String[] todayS = today.toString().split(" ");
+            TextView textView1 = (TextView) findViewById(R.id.birth);
+            if (birthdayS[1].equals(todayS[1]) && birthdayS[2].equals(todayS[2])) {
+                textView1.setText("It is your birthday!");
+            }
+            else {
+                textView1.setText("It is not your birthday");
+            }
 
+            String Facebook = topObject.getString("access_token");
             getJSONFacebook taskFacebook = new getJSONFacebook();
-            taskFacebook.execute(prefs.getString("facebook", "undefined"));
+            taskFacebook.execute(Facebook);
             Json = taskFacebook.get();
 
             topObject = new JSONObject(Json);
